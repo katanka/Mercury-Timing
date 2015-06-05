@@ -1,6 +1,7 @@
 from selenium import webdriver
 from multiprocessing import Pool, Manager
-import urllib2, json
+import urllib2, json, sys
+from time import sleep
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -12,7 +13,7 @@ random_url = "api.php?action=query&generator=random&grnnamespace=0&format=json"
 workers = []
 data = Manager().list()
 
-total_calls = 15
+total_calls = 20
 current_calls = 0
 max_workers = 5
 current_workers = 0
@@ -35,7 +36,7 @@ def extractTitle(data):
 
 	return title
 
-def generateRandomURL():
+def generateRandomURL(x):
 	title = extractTitle(json.loads(urllib2.urlopen( generateURL(wikiDomain, random_url, False) ).read()))
 
 	return generateURL(wikiDomain, 'wiki/' + title.replace(' ', '_'), True)
@@ -44,7 +45,6 @@ def generateURL(wikiDomain, localPath, noexternals):
 	return 'http://' + wikiDomain + '.wikia.com/' + localPath + ('?noexternals=1' if noexternals else '')
 
 def processRandomPage(url):
-	print url
 	
 
 	size = len(urllib2.urlopen(url).read())
@@ -61,7 +61,7 @@ def processRandomPage(url):
 	domContentLoadedEventTime = driver.execute_script("return window.performance.timing.domContentLoadedEventStart")
 	loadEventTime = driver.execute_script("return window.performance.timing.loadEventStart")
 
-	driver.close()
+	driver.quit()
 
 	domContentLoaded = domContentLoadedEventTime - start
 	loadEvent = loadEventTime - start
@@ -74,33 +74,67 @@ def processRandomPage(url):
 			'loadEvent': loadEvent
 		}
 
-pool = Pool(processes=10)              # start 4 worker processes
-urls = [generateRandomURL() for _ in range(total_calls)]
-data = pool.map(processRandomPage, urls)
-# while current_calls < total_calls:
-# 	while current_workers < max_workers:
-#         p = Process(target=processRandomPage, args=(data,))
-#         workers.append(p)
-#         p.start()
-#         current_workers += 1
 
-for obj in data:
-	print obj
+if __name__ == "__main__":
+	try:
+		print 'Starting pool...'
+		pool = Pool(processes=5)              # start 5 worker processes
+		print 'Done'
+		print 'Getting random urls...'
 
-N = len(data)
-size = [page['size'] for page in data]
-domContentLoaded = [page['domContentLoaded'] for page in data]
-loadEvent = [page['loadEvent'] for page in data]
+		result = pool.map_async(generateRandomURL, range(total_calls))
 
-fig = plt.figure()
-ax = fig.add_subplot(111)
-ax.set_xlabel('Size (bytes)')
-ax.set_ylabel('Time (ms)')
-ax.axis([min(size) - 10000, max(size) + 10000, 0, max(loadEvent)+1000])
+		# monitor loop
+		i = 0
+		while True:
+		    if result.ready():
+		        break
+		    else:
+		    	sys.stdout.flush()
+		        sys.stdout.write('.'*(i%3 + 1))
+		        sleep(1)
+		sys.stdout.flush()
+		urls = result.get()
+		print 'Done'
+		print 'Starting testing...'
+		result = pool.map_async(processRandomPage, urls)
+
+		while True:
+		    if result.ready():
+		        break
+		    else:
+		        sys.stdout.write('.'*(i%3 + 1))
+		        sleep(1)
+		        sys.stdout.flush()
+		sys.stdout.flush()
+
+		data = result.get()
+
+		#data = [result.get() for result in results]
+		print 'Done'
+		print 'Starting result processing...'
 
 
-ax.scatter(size, loadEvent, label='loadEvent', color='red')
-ax.scatter(size, domContentLoaded, label='domContentLoaded')
+		N = len(data)
+		size = [page['size']/1000 for page in data]
+		domContentLoaded = [page['domContentLoaded'] for page in data]
+		loadEvent = [page['loadEvent'] for page in data]
 
-plt.legend(loc='upper left')
-plt.show()
+		print 'Done'
+		print 'Displaying plot'
+
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		ax.set_xlabel('Size (kb)')
+		ax.set_ylabel('Time (ms)')
+		ax.set_xscale('log')
+		ax.axis([min(size)/10, max(size)*10, 0, max(loadEvent)+1000])
+
+
+		ax.scatter(size, loadEvent, label='loadEvent', color='red', alpha=0.5)
+		ax.scatter(size, domContentLoaded, label='domContentLoaded', alpha=0.5)
+
+		plt.legend(loc='upper left')
+		plt.show()
+	except Exception as e:
+		print e
