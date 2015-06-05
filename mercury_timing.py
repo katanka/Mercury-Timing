@@ -75,6 +75,18 @@ def processRandomPage(url):
 		}
 
 
+def waitMessage():
+	i = 0
+	while True:
+	    if result.ready():
+	        break
+	    else:
+	        sys.stdout.write('\r'+'.'*(i%3 + 1) + ' '*(2-i%3))
+	        i += 1
+	        sleep(1)
+	        sys.stdout.flush()
+	sys.stdout.write('\rDone\n')
+
 if __name__ == "__main__":
 	try:
 		print 'Starting pool...'
@@ -85,35 +97,17 @@ if __name__ == "__main__":
 		result = pool.map_async(generateRandomURL, range(total_calls))
 
 		# monitor loop
-		i = 0
-		while True:
-		    if result.ready():
-		        break
-		    else:
-		    	sys.stdout.flush()
-		        sys.stdout.write('.'*(i%3 + 1))
-		        i += 1
-		        sleep(1)
-		sys.stdout.flush()
+		waitMessage()
+
 		urls = result.get()
-		print 'Done'
+
 		print 'Starting testing...'
 		result = pool.map_async(processRandomPage, urls)
 
-		while True:
-		    if result.ready():
-		        break
-		    else:
-		        sys.stdout.write('.'*(i%3 + 1))
-		        i += 1
-		        sleep(1)
-		        sys.stdout.flush()
-		sys.stdout.flush()
+		waitMessage()
 
 		data = result.get()
 
-		#data = [result.get() for result in results]
-		print 'Done'
 		print 'Starting result processing...'
 
 
@@ -130,7 +124,7 @@ if __name__ == "__main__":
 		ax.set_xlabel('Size (kb)')
 		ax.set_ylabel('Time (ms)')
 		ax.set_xscale('log')
-		ax.axis([min(size)/10, max(size)*10, 0, max(loadEvent)+1000])
+		ax.axis([min(size)/2, max(size)*2, 0, max(loadEvent)+1000])
 
 
 		ax.scatter(size, loadEvent, label='loadEvent', color='red', alpha=0.5)
