@@ -92,6 +92,7 @@ if __name__ == "__main__":
 		    else:
 		    	sys.stdout.flush()
 		        sys.stdout.write('.'*(i%3 + 1))
+		        i += 1
 		        sleep(1)
 		sys.stdout.flush()
 		urls = result.get()
@@ -104,6 +105,7 @@ if __name__ == "__main__":
 		        break
 		    else:
 		        sys.stdout.write('.'*(i%3 + 1))
+		        i += 1
 		        sleep(1)
 		        sys.stdout.flush()
 		sys.stdout.flush()
